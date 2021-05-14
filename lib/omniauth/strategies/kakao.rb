@@ -3,65 +3,54 @@ require 'omniauth-oauth2'
 module OmniAuth
   module Strategies
     class Kakao < OmniAuth::Strategies::OAuth2
-      DEFAULT_REDIRECT_PATH = "/oauth"
-
       option :name, 'kakao'
 
       option :client_options, {
-        :site => 'https://kauth.kakao.com',
-        :authorize_path => '/oauth/authorize',
-        :token_url => '/oauth/token',
+        site: 'https://kauth.kakao.com',
+        authorize_path: '/oauth/authorize',
+        token_url: '/oauth/token',
       }
 
       uid { raw_info['id'].to_s }
 
       info do
         {
-          'name' => raw_properties['nickname'],
-          'image' => raw_properties['thumbnail_image'],
-        }.merge(kakao_account)
+          name: raw_properties['nickname'],
+          image: image,
+          email: email
+        }
       end
 
       extra do
-        {'properties' => raw_properties}
-      end
-
-      def initialize(app, *args, &block)
-        super
-        options[:callback_path] = options[:redirect_path] || DEFAULT_REDIRECT_PATH
-      end
-
-      def callback_phase
-        previous_callback_path = options.delete(:callback_path)
-        @env["PATH_INFO"] = "/auth/kakao/callback"
-        options[:callback_path] = previous_callback_path
-        super
-      end
-
-      def mock_call!(*)
-        options.delete(:callback_path)
-        super
+        { raw_info: raw_info }
       end
 
       def callback_url
-        if @authorization_code_from_signed_request_in_cookie
-          ''
-        else
-          options[:callback_url] || (full_host + script_name + callback_path)
-        end
+        full_host + script_name + callback_path
       end
 
-    private
+      private
+
+      def email
+        return if raw_kakao_account['email'].nil?
+        return raw_kakao_account['email']
+      end
+
+      def image
+        return if raw_properties['profile_image'].nil?
+        return raw_properties['profile_image']
+      end
+
       def raw_info
-        @raw_info ||= access_token.get('https://kapi.kakao.com/v2/user/me', {}).parsed || {}
+        @raw_info ||= access_token.get('https://kapi.kakao.com/v2/user/me').parsed
       end
 
       def raw_properties
         @raw_properties ||= raw_info['properties']
       end
 
-      def kakao_account
-        @kakao_account ||= raw_info['kakao_account'].except('profile')
+      def raw_kakao_account
+        @raw_kakao_account ||= raw_info['kakao_account']
       end
     end
   end
